@@ -1,6 +1,6 @@
 import pygame
 import sys
-from src.grid import draw_grid
+from src.grid import draw_grid, load_grid_from_file
 from src.player import Cell
 
 # Inicializando o pygame
@@ -21,8 +21,11 @@ pygame.display.set_caption('Jogo da Matriz 42x42')
 def main():
     running = True
     
+    # Carrega a matriz do arquivo
+    grid = load_grid_from_file('src/matriz.txt')
+    
     # Célula móvel (começa na posição 0,0)
-    moving_cell = Cell(0, 0, (0, 0, 255))  # Azul
+    moving_cell = Cell(22, 18, (0, 0, 255))  # Azul
     
     # Células coloridas-alvo
     target_cells = [
@@ -34,7 +37,7 @@ def main():
     while running:
         screen.fill(BLACK)  # Preenche a tela com preto
 
-        draw_grid(screen)  # Desenha a matriz
+        draw_grid(screen, grid)  # Desenha a matriz carregada do arquivo
         
         # Desenha célula móvel
         moving_cell.draw(screen)
