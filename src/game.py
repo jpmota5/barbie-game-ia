@@ -9,6 +9,7 @@ pygame.init()
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
+PINK = (255, 105, 180)  # Cor rosa para o botão e fundo do overlay
 
 WIDTH, HEIGHT = 630, 630
 GRID_SIZE = 42
@@ -33,12 +34,18 @@ def load_character_images():
         characters[name] = pygame.transform.scale(image, (CELL_SIZE, CELL_SIZE))
     return characters
 
+def load_logo_image():
+    logo = pygame.image.load('assets/barbie-logo.png')  # Substitua pelo caminho da sua imagem
+    logo = pygame.transform.scale(logo, (200, 100))  # Ajuste o tamanho conforme necessário
+    return logo
+
 def display_results_overlay(screen, total_time, total_cost, friends):
     overlay_width, overlay_height = 400, 200
     overlay_x, overlay_y = (WIDTH - overlay_width) // 2, (HEIGHT - overlay_height) // 2
     overlay_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
-
-    pygame.draw.rect(screen, BLACK, overlay_rect)
+    
+    # Desenha o fundo rosa
+    pygame.draw.rect(screen, PINK, overlay_rect)
     pygame.draw.rect(screen, WHITE, overlay_rect, 2)
 
     results = [
@@ -53,7 +60,30 @@ def display_results_overlay(screen, total_time, total_cost, friends):
         screen.blit(text_surface, (overlay_x + 10, y_offset))
         y_offset += 40
 
+    # Botão "Sair"
+    exit_button_width = 100
+    exit_button_height = 40
+    exit_button = pygame.Rect(overlay_x + (overlay_width - exit_button_width) // 2,
+                               overlay_y + overlay_height - 60,
+                               exit_button_width, exit_button_height)
+
+    pygame.draw.rect(screen, WHITE, exit_button)
+    exit_text = font.render("Sair", True, PINK)
+    screen.blit(exit_text, (exit_button.x + (exit_button_width - exit_text.get_width()) // 2,
+                             exit_button.y + (exit_button_height - exit_text.get_height()) // 2))
+
     pygame.display.flip()
+
+    # Loop para verificar o clique no botão "Sair"
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if exit_button.collidepoint(event.pos):
+                    pygame.quit()
+                    sys.exit()
 
 def a_star_search(start, goal, grid):
     costs = {0: float('inf'), 1: 1, 3: 3, 5: 5, 10: 10}
@@ -100,7 +130,7 @@ def get_neighbors(pos, grid):
             neighbors.append(neighbor)
     return neighbors
 
-def main():
+def main_game():
     running = True
     grid = load_grid_from_file('assets/matriz.txt')
     character_images = load_character_images()
@@ -188,12 +218,42 @@ def main():
 
     display_results_overlay(screen, total_time, total_cost, friends)
 
-    # Mantém a tela aberta até que o usuário decida fechá-la
-    while True:
+def main_menu():
+    running = True
+    logo_image = load_logo_image()  # Carrega a imagem do logo
+    while running:
+        screen.fill(WHITE)  # Altera o fundo para branco
+
+        # Título do jogo
+        title_text = font.render("BARBIE WORLD", True, (255, 105, 180))  # Cor rosa para o título
+        start_text = font.render("Pressione ENTER para começar o jogo", True, (255, 105, 180))  # Texto de início
+
+        # Calcular as posições centralizadas
+        title_x = WIDTH // 2 - title_text.get_width() // 2
+        title_y = HEIGHT // 2 - 60
+
+        logo_x = WIDTH // 2 - logo_image.get_width() // 2
+        logo_y = title_y + title_text.get_height() + 20  # 20 pixels abaixo do título
+
+        start_x = WIDTH // 2 - start_text.get_width() // 2
+        start_y = logo_y + logo_image.get_height() + 20  # 20 pixels abaixo do logo
+
+        # Desenhar os elementos na tela
+        screen.blit(title_text, (title_x, title_y))
+        screen.blit(logo_image, (logo_x, logo_y))
+        screen.blit(start_text, (start_x, start_y))
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    main_game()
+
+        pygame.display.flip()
+
+    pygame.quit()
+    sys.exit()
 
 if __name__ == '__main__':
-    main()
+    main_menu()
