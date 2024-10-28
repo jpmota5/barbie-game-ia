@@ -57,8 +57,8 @@ def load_logo_image():
     logo = pygame.transform.scale(logo, (200, 100))
     return logo
 
-def display_results_overlay(screen, total_time, total_cost, friends):
-    overlay_width, overlay_height = 400, 200
+def display_results_overlay(screen, total_time, total_cost, friends, algorithm_time):
+    overlay_width, overlay_height = 400, 240  # Ajuste de altura para acomodar as informações extras
     overlay_x, overlay_y = (WIDTH - overlay_width) // 2, (HEIGHT - overlay_height) // 2
     overlay_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
 
@@ -66,7 +66,8 @@ def display_results_overlay(screen, total_time, total_cost, friends):
     pygame.draw.rect(screen, WHITE, overlay_rect, 2)
 
     results = [
-        f"Tempo total: {total_time:.2f} segundos",
+        f"Tempo de percurso: {total_time:.2f} segundos",
+        f"Tempo de execução - A*: {algorithm_time:.2f} segundos",
         f"Custo total: {total_cost}",
         "Convencidos: " + ", ".join(friends)
     ]
@@ -141,11 +142,11 @@ def get_neighbors(pos, grid):
     return neighbors
 
 def main_game():
-    random.seed(time.time())  # Seed para garantir aleatoriedade entre execuções
-    
+    # Configurações do jogo
+    random.seed(time.time())
     grid = load_grid_from_file('assets/matriz.txt')
     character_images = load_character_images()
-    
+
     characters = {
         'brandon': (9, 8),
         'mary': (4, 12),
@@ -160,6 +161,7 @@ def main_game():
     convinced_friends = []
     total_cost = 0
     path_history = []
+    algorithm_time = 0  # Tempo total de execução do algoritmo
 
     start_time = time.time()
 
@@ -171,6 +173,7 @@ def main_game():
     current_pos = barbie_pos.copy()
     remaining_friends = set(characters.keys())
 
+    # Processamento de busca
     while len(convinced_friends) < 3:
         closest_friend = None
         min_cost = float('inf')
@@ -178,7 +181,13 @@ def main_game():
 
         for friend in remaining_friends:
             friend_pos = characters[friend]
+            
+            # Medindo o tempo do algoritmo A*
+            start_algo_time = time.time()
             path = a_star_search(grid, tuple(current_pos), friend_pos)
+            end_algo_time = time.time()
+            algorithm_time += end_algo_time - start_algo_time  # Soma ao tempo total do algoritmo
+            
             cost = sum(custo_movimento(grid, path[i], path[i + 1]) for i in range(len(path) - 1))
             
             if cost < min_cost:
@@ -191,6 +200,7 @@ def main_game():
                 path_history.append(tuple(current_pos))
                 current_pos = closest_path.pop(0)
 
+                # Atualiza tela
                 barbie_x, barbie_y = current_pos[1] * CELL_SIZE, current_pos[0] * CELL_SIZE
                 screen.fill(BLACK)
                 draw_grid(screen, grid)
@@ -205,20 +215,24 @@ def main_game():
 
                 screen.blit(character_images['barbie'], (barbie_x, barbie_y))
                 pygame.display.flip()
-                time.sleep(0.15)
+                time.sleep(0.1)
 
+            # Checa se o amigo foi um dos sorteados e exibe resultado no terminal
             if closest_friend in selected_friends:
                 convinced_friends.append(closest_friend)
+                print(f"{closest_friend.capitalize()} aceitou o convite.")
+            else:
+                print(f"{closest_friend.capitalize()} não aceitou o convite.")
+
             remaining_friends.remove(closest_friend)
             total_cost += min_cost
             path_history.append(tuple(current_pos))
 
-    # Calcula o caminho de volta para a posição inicial
+    # Retorno à posição inicial
     return_path = a_star_search(grid, tuple(current_pos), tuple(initial_barbie_pos))
     return_cost = sum(custo_movimento(grid, return_path[i], return_path[i + 1]) for i in range(len(return_path) - 1))
     total_cost += return_cost
 
-    # Exibe a volta da Barbie até a posição inicial
     while return_path:
         path_history.append(tuple(current_pos))
         current_pos = return_path.pop(0)
@@ -237,11 +251,12 @@ def main_game():
 
         screen.blit(character_images['barbie'], (barbie_x, barbie_y))
         pygame.display.flip()
-        time.sleep(0.15)
+        time.sleep(0.1)
 
-    total_time = time.time() - start_time
-    display_results_overlay(screen, total_time, total_cost, convinced_friends)
+    end_time = time.time()
+    total_time = end_time - start_time
 
+    display_results_overlay(screen, total_time, total_cost, convinced_friends, algorithm_time)
 def main_menu():
     running = True
     logo_image = load_logo_image()
