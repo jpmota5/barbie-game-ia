@@ -3,13 +3,15 @@ import sys
 import random
 import heapq
 import time
+import itertools  # Para gerar permutações
 from src.grid import draw_grid, load_grid_from_file
 
 pygame.init()
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-PINK = (255, 105, 180)  # Cor rosa para o botão e fundo do overlay
+PINK = (255, 20, 147)
+ROSA_PATH = (255, 105, 180)
 
 WIDTH, HEIGHT = 630, 630
 GRID_SIZE = 42
@@ -18,7 +20,23 @@ CELL_SIZE = 15
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('BARBIE WORLD')
 
-font = pygame.font.Font(None, 30)  # Fonte para exibir o texto
+font = pygame.font.Font(None, 30)
+
+def heuristica(pos_atual, destino):
+    """Calcula a distância de Manhattan entre dois pontos."""
+    return abs(pos_atual[0] - destino[0]) + abs(pos_atual[1] - destino[1])
+
+def custo_movimento(mapa, pos1, pos2):
+    """Define o custo de movimento entre dois pontos no mapa com base no tipo de terreno."""
+    terreno_custo = {
+        1: 1,   # asfalto
+        3: 3,   # terra
+        5: 5,   # grama
+        10: 10  # paralelepípedo
+    }
+    
+    tipo_terreno = mapa[pos2[0]][pos2[1]]  
+    return terreno_custo.get(tipo_terreno, float('inf'))
 
 def load_character_images():
     characters = {
@@ -35,23 +53,22 @@ def load_character_images():
     return characters
 
 def load_logo_image():
-    logo = pygame.image.load('assets/barbie-logo.png')  # Substitua pelo caminho da sua imagem
-    logo = pygame.transform.scale(logo, (200, 100))  # Ajuste o tamanho conforme necessário
+    logo = pygame.image.load('assets/barbie-logo.png')
+    logo = pygame.transform.scale(logo, (200, 100))
     return logo
 
 def display_results_overlay(screen, total_time, total_cost, friends):
     overlay_width, overlay_height = 400, 200
     overlay_x, overlay_y = (WIDTH - overlay_width) // 2, (HEIGHT - overlay_height) // 2
     overlay_rect = pygame.Rect(overlay_x, overlay_y, overlay_width, overlay_height)
-    
-    # Desenha o fundo rosa
-    pygame.draw.rect(screen, PINK, overlay_rect)
+
+    pygame.draw.rect(screen, ROSA_PATH, overlay_rect)
     pygame.draw.rect(screen, WHITE, overlay_rect, 2)
 
     results = [
         f"Tempo total: {total_time:.2f} segundos",
         f"Custo total: {total_cost}",
-        "Amigos sorteados: " + ", ".join(friends)
+        "Convencidos: " + ", ".join(friends)
     ]
 
     y_offset = overlay_y + 20
@@ -60,7 +77,6 @@ def display_results_overlay(screen, total_time, total_cost, friends):
         screen.blit(text_surface, (overlay_x + 10, y_offset))
         y_offset += 40
 
-    # Botão "Sair"
     exit_button_width = 100
     exit_button_height = 40
     exit_button = pygame.Rect(overlay_x + (overlay_width - exit_button_width) // 2,
@@ -74,7 +90,6 @@ def display_results_overlay(screen, total_time, total_cost, friends):
 
     pygame.display.flip()
 
-    # Loop para verificar o clique no botão "Sair"
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -85,41 +100,36 @@ def display_results_overlay(screen, total_time, total_cost, friends):
                     pygame.quit()
                     sys.exit()
 
-def a_star_search(start, goal, grid):
-    costs = {0: float('inf'), 1: 1, 3: 3, 5: 5, 10: 10}
-    
-    open_set = []
-    heapq.heappush(open_set, (0, start))
-    
-    came_from = {}
-    g_score = {start: 0}
-    f_score = {start: heuristic(start, goal)}
+def a_star_search(mapa, inicio, destino):
+    filas_prioridade = []
+    heapq.heappush(filas_prioridade, (0, inicio))
+    custo_acumulado = {inicio: 0}
+    caminho = {inicio: None}
+    visitados = set()
 
-    while open_set:
-        current = heapq.heappop(open_set)[1]
-        if current == goal:
-            return reconstruct_path(came_from, current)
+    while filas_prioridade:
+        _, ponto_atual = heapq.heappop(filas_prioridade)
 
-        for neighbor in get_neighbors(current, grid):
-            tentative_g_score = g_score[current] + costs[grid[neighbor[0]][neighbor[1]]]
-            if tentative_g_score < g_score.get(neighbor, float('inf')):
-                came_from[neighbor] = current
-                g_score[neighbor] = tentative_g_score
-                f_score[neighbor] = tentative_g_score + heuristic(neighbor, goal)
-                if neighbor not in [i[1] for i in open_set]:
-                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+        if ponto_atual in visitados:
+            continue
+        visitados.add(ponto_atual)
+
+        if ponto_atual == destino:
+            caminho_final = []
+            while ponto_atual:
+                caminho_final.append(ponto_atual)
+                ponto_atual = caminho[ponto_atual]
+            return caminho_final[::-1]  
+
+        for vizinho in get_neighbors(ponto_atual, mapa):
+            custo_para_vizinho = custo_acumulado[ponto_atual] + custo_movimento(mapa, ponto_atual, vizinho)
+            if custo_para_vizinho < custo_acumulado.get(vizinho, float('inf')):
+                caminho[vizinho] = ponto_atual
+                custo_acumulado[vizinho] = custo_para_vizinho
+                prioridade = custo_para_vizinho + heuristica(vizinho, destino)
+                heapq.heappush(filas_prioridade, (prioridade, vizinho))
 
     return []
-
-def reconstruct_path(came_from, current):
-    total_path = [current]
-    while current in came_from:
-        current = came_from[current]
-        total_path.append(current)
-    return total_path[::-1]
-
-def heuristic(a, b):
-    return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 def get_neighbors(pos, grid):
     neighbors = []
@@ -130,8 +140,24 @@ def get_neighbors(pos, grid):
             neighbors.append(neighbor)
     return neighbors
 
+def calculate_total_cost(permutation, characters, grid, barbie_pos, initial_pos):
+    total_cost = 0
+    current_pos = barbie_pos.copy()
+
+    # Move through the friends in the current permutation
+    for friend in permutation:
+        friend_pos = characters[friend]
+        path = a_star_search(grid, tuple(current_pos), friend_pos)
+        total_cost += sum(custo_movimento(grid, path[i], path[i + 1]) for i in range(len(path) - 1))
+        current_pos = friend_pos
+
+    # Return to the initial position
+    path_back = a_star_search(grid, tuple(current_pos), tuple(initial_pos))
+    total_cost += sum(custo_movimento(grid, path_back[i], path_back[i + 1]) for i in range(len(path_back) - 1))
+
+    return total_cost
+
 def main_game():
-    running = True
     grid = load_grid_from_file('assets/matriz.txt')
     character_images = load_character_images()
     
@@ -146,99 +172,103 @@ def main_game():
     
     barbie_pos = [22, 18]
     initial_barbie_pos = barbie_pos.copy()
-    friends = random.sample(list(characters.keys()), 3)
     convinced_friends = []
-    remaining_friends = friends.copy()
     total_cost = 0
+    path_history = []
 
-    start_time = time.time()  # Início da contagem de tempo
+    start_time = time.time()
 
-    while running and len(convinced_friends) < 3:
-        screen.fill(BLACK)
-        draw_grid(screen, grid)
-        
-        for name, (row, col) in characters.items():
-            image = character_images[name]
-            x, y = col * CELL_SIZE, row * CELL_SIZE
-            screen.blit(image, (x, y))
-        
-        barbie_x, barbie_y = barbie_pos[1] * CELL_SIZE, barbie_pos[0] * CELL_SIZE
-        screen.blit(character_images['barbie'], (barbie_x, barbie_y))
+    # Sorteia 3 amigos aleatórios
+    friends_list = list(characters.keys())
+    selected_friends = random.sample(friends_list, 3)  # Sorteia 3 amigos
+    print(f"Sorteados: {selected_friends}")  # Apenas para debug, pode ser removido depois
 
-        if not remaining_friends:
-            break
+    # Loop principal do jogo
+    running = True
+    current_pos = barbie_pos.copy()
+    
+    # Visitar todos os amigos
+    for friend in characters.keys():
+        friend_pos = characters[friend]
+        path = a_star_search(grid, tuple(current_pos), friend_pos)
 
-        min_cost = float('inf')
-        next_friend = None
-        next_path = []
-        
-        random.shuffle(remaining_friends)
-        for friend in remaining_friends:
-            goal = characters[friend]
-            path = a_star_search(tuple(barbie_pos), goal, grid)
-            cost = sum(grid[pos[0]][pos[1]] for pos in path)
-
-            if path and cost < min_cost:
-                min_cost = cost
-                next_friend = friend
-                next_path = path
-
-        if next_friend and next_path:
-            path = next_path
+        if path:
             while path:
-                barbie_pos = path.pop(0)
-                barbie_x, barbie_y = barbie_pos[1] * CELL_SIZE, barbie_pos[0] * CELL_SIZE
+                path_history.append(tuple(current_pos))
+                current_pos = path.pop(0)
+
+                barbie_x, barbie_y = current_pos[1] * CELL_SIZE, current_pos[0] * CELL_SIZE
+                screen.fill(BLACK)
+                draw_grid(screen, grid)
+
+                for pos in path_history:
+                    pygame.draw.circle(screen, ROSA_PATH, (pos[1] * CELL_SIZE + CELL_SIZE // 2, pos[0] * CELL_SIZE + CELL_SIZE // 2), 3)
+
+                for name, (row, col) in characters.items():
+                    image = character_images[name]
+                    x, y = col * CELL_SIZE, row * CELL_SIZE
+                    screen.blit(image, (x, y))
+
                 screen.blit(character_images['barbie'], (barbie_x, barbie_y))
                 pygame.display.flip()
                 time.sleep(0.1)
-            
-            convinced_friends.append(next_friend)
-            remaining_friends.remove(next_friend)
-            total_cost += min_cost
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+            # Verifica se o amigo foi sorteado
+            if friend in selected_friends:
+                convinced_friends.append(friend)
 
-        pygame.display.flip()
+    # Retorno ao ponto inicial
+    path_back = a_star_search(grid, tuple(current_pos), tuple(initial_barbie_pos))
+    if path_back:
+        while path_back:
+            path_history.append(tuple(current_pos))
+            current_pos = path_back.pop(0)
 
-    if len(convinced_friends) == 3:
-        path = a_star_search(tuple(barbie_pos), tuple(initial_barbie_pos), grid)
-        return_cost = sum(grid[pos[0]][pos[1]] for pos in path)
-        total_cost += return_cost
-        while path:
-            barbie_pos = path.pop(0)
-            barbie_x, barbie_y = barbie_pos[1] * CELL_SIZE, barbie_pos[0] * CELL_SIZE
+            barbie_x, barbie_y = current_pos[1] * CELL_SIZE, current_pos[0] * CELL_SIZE
+            screen.fill(BLACK)
+            draw_grid(screen, grid)
+
+            for pos in path_history:
+                pygame.draw.circle(screen, ROSA_PATH, (pos[1] * CELL_SIZE + CELL_SIZE // 2, pos[0] * CELL_SIZE + CELL_SIZE // 2), 3)
+
+            for name, (row, col) in characters.items():
+                image = character_images[name]
+                x, y = col * CELL_SIZE, row * CELL_SIZE
+                screen.blit(image, (x, y))
+
             screen.blit(character_images['barbie'], (barbie_x, barbie_y))
             pygame.display.flip()
             time.sleep(0.1)
 
-    end_time = time.time()
-    total_time = end_time - start_time
+    total_time = time.time() - start_time
+    total_cost = calculate_total_cost(selected_friends, characters, grid, barbie_pos, initial_barbie_pos)
 
-    display_results_overlay(screen, total_time, total_cost, friends)
+    display_results_overlay(screen, total_time, total_cost, convinced_friends)
 
 def main_menu():
     running = True
-    logo_image = load_logo_image()  # Carrega a imagem do logo
+    logo_image = load_logo_image()
+    title_font = pygame.font.Font(None, 50)
+    start_font = pygame.font.Font(None, 30)
+
     while running:
-        screen.fill(WHITE)  # Altera o fundo para branco
+        screen.fill(WHITE)
+        
+        # Centralizar título
+        title_text = title_font.render("BARBIE WORLD", True, PINK)
+        title_x = (WIDTH - title_text.get_width()) // 2
+        title_y = (HEIGHT - title_text.get_height() - logo_image.get_height() - 50) // 2  # Ajustado para ficar abaixo da logo
 
-        # Título do jogo
-        title_text = font.render("BARBIE WORLD", True, (255, 105, 180))  # Cor rosa para o título
-        start_text = font.render("Pressione ENTER para começar o jogo", True, (255, 105, 180))  # Texto de início
+        # Centralizar logo
+        logo_x = (WIDTH - logo_image.get_width()) // 2
+        logo_y = title_y + title_text.get_height() + 20  # Espaçamento entre o título e a logo
 
-        # Calcular as posições centralizadas
-        title_x = WIDTH // 2 - title_text.get_width() // 2
-        title_y = HEIGHT // 2 - 60
+        # Centralizar texto de início
+        start_text = start_font.render("Aperte ENTER para começar o jogo", True, PINK)
+        start_x = (WIDTH - start_text.get_width()) // 2
+        start_y = logo_y + logo_image.get_height() + 30  # Espaçamento entre a logo e o texto
 
-        logo_x = WIDTH // 2 - logo_image.get_width() // 2
-        logo_y = title_y + title_text.get_height() + 20  # 20 pixels abaixo do título
-
-        start_x = WIDTH // 2 - start_text.get_width() // 2
-        start_y = logo_y + logo_image.get_height() + 20  # 20 pixels abaixo do logo
-
-        # Desenhar os elementos na tela
+        # Desenhar elementos na tela
         screen.blit(title_text, (title_x, title_y))
         screen.blit(logo_image, (logo_x, logo_y))
         screen.blit(start_text, (start_x, start_y))
@@ -246,14 +276,13 @@ def main_menu():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
-                    main_game()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                main_game()
 
         pygame.display.flip()
 
     pygame.quit()
     sys.exit()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main_menu()

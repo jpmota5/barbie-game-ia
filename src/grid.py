@@ -4,7 +4,7 @@ import pygame
 COLOR_MAP = {
     1: (128, 128, 128),  # Asfalto (Cinza Escuro)
     3: (190, 132, 85),   # Terra (Marrom)
-    5: (50, 205, 50),    # Grama (Verde)
+    5: (255, 20, 147),    # Grama (Rosa)
     10: (211, 211, 211), # Paralelepípedo (Cinza Claro)
     0: (255, 184, 103)   # Edifícios (Laranja)
 }
