@@ -157,6 +157,7 @@ def calculate_total_cost(permutation, characters, grid, barbie_pos, initial_pos)
 
     return total_cost
 
+# Ajustes no trecho principal do jogo para adicionar verificação dinâmica dos amigos convencidos
 def main_game():
     grid = load_grid_from_file('assets/matriz.txt')
     character_images = load_character_images()
@@ -183,19 +184,32 @@ def main_game():
     selected_friends = random.sample(friends_list, 3)  # Sorteia 3 amigos
     print(f"Sorteados: {selected_friends}")  # Apenas para debug, pode ser removido depois
 
-    # Loop principal do jogo
-    running = True
     current_pos = barbie_pos.copy()
-    
-    # Visitar todos os amigos
-    for friend in characters.keys():
-        friend_pos = characters[friend]
-        path = a_star_search(grid, tuple(current_pos), friend_pos)
+    remaining_friends = set(characters.keys())  # Mantém o rastreamento dos amigos ainda não visitados
 
-        if path:
-            while path:
+    # Loop até convencer os 3 amigos sorteados
+    while len(convinced_friends) < 3:
+        # Encontrar o amigo mais próximo baseado no custo
+        closest_friend = None
+        min_cost = float('inf')
+        closest_path = []
+
+        # Verifica o custo de ir até cada amigo ainda não visitado
+        for friend in remaining_friends:
+            friend_pos = characters[friend]
+            path = a_star_search(grid, tuple(current_pos), friend_pos)
+            cost = sum(custo_movimento(grid, path[i], path[i + 1]) for i in range(len(path) - 1))
+            
+            if cost < min_cost:
+                min_cost = cost
+                closest_friend = friend
+                closest_path = path
+
+        # Move a Barbie até o amigo com o menor custo
+        if closest_path:
+            while closest_path:
                 path_history.append(tuple(current_pos))
-                current_pos = path.pop(0)
+                current_pos = closest_path.pop(0)
 
                 barbie_x, barbie_y = current_pos[1] * CELL_SIZE, current_pos[0] * CELL_SIZE
                 screen.fill(BLACK)
@@ -214,8 +228,10 @@ def main_game():
                 time.sleep(0.1)
 
             # Verifica se o amigo foi sorteado
-            if friend in selected_friends:
-                convinced_friends.append(friend)
+            if closest_friend in selected_friends:
+                convinced_friends.append(closest_friend)
+
+            remaining_friends.remove(closest_friend)  # Remove o amigo visitado dos restantes
 
     # Retorno ao ponto inicial
     path_back = a_star_search(grid, tuple(current_pos), tuple(initial_barbie_pos))
@@ -241,7 +257,7 @@ def main_game():
             time.sleep(0.1)
 
     total_time = time.time() - start_time
-    total_cost = calculate_total_cost(selected_friends, characters, grid, barbie_pos, initial_barbie_pos)
+    total_cost = calculate_total_cost(convinced_friends, characters, grid, barbie_pos, initial_barbie_pos)
 
     display_results_overlay(screen, total_time, total_cost, convinced_friends)
 
