@@ -140,25 +140,9 @@ def get_neighbors(pos, grid):
             neighbors.append(neighbor)
     return neighbors
 
-def calculate_total_cost(permutation, characters, grid, barbie_pos, initial_pos):
-    total_cost = 0
-    current_pos = barbie_pos.copy()
-
-    # Move through the friends in the current permutation
-    for friend in permutation:
-        friend_pos = characters[friend]
-        path = a_star_search(grid, tuple(current_pos), friend_pos)
-        total_cost += sum(custo_movimento(grid, path[i], path[i + 1]) for i in range(len(path) - 1))
-        current_pos = friend_pos
-
-    # Return to the initial position
-    path_back = a_star_search(grid, tuple(current_pos), tuple(initial_pos))
-    total_cost += sum(custo_movimento(grid, path_back[i], path_back[i + 1]) for i in range(len(path_back) - 1))
-
-    return total_cost
-
-# Ajustes no trecho principal do jogo para adicionar verificação dinâmica dos amigos convencidos
 def main_game():
+    random.seed(time.time())  # Seed para garantir aleatoriedade entre execuções
+    
     grid = load_grid_from_file('assets/matriz.txt')
     character_images = load_character_images()
     
@@ -179,22 +163,19 @@ def main_game():
 
     start_time = time.time()
 
-    # Sorteia 3 amigos aleatórios
+    # Sorteia 3 amigos aleatórios a cada execução do jogo
     friends_list = list(characters.keys())
-    selected_friends = random.sample(friends_list, 3)  # Sorteia 3 amigos
-    print(f"Sorteados: {selected_friends}")  # Apenas para debug, pode ser removido depois
+    selected_friends = random.sample(friends_list, 3)
+    print(f"Sorteados: {selected_friends}")
 
     current_pos = barbie_pos.copy()
-    remaining_friends = set(characters.keys())  # Mantém o rastreamento dos amigos ainda não visitados
+    remaining_friends = set(characters.keys())
 
-    # Loop até convencer os 3 amigos sorteados
     while len(convinced_friends) < 3:
-        # Encontrar o amigo mais próximo baseado no custo
         closest_friend = None
         min_cost = float('inf')
         closest_path = []
 
-        # Verifica o custo de ir até cada amigo ainda não visitado
         for friend in remaining_friends:
             friend_pos = characters[friend]
             path = a_star_search(grid, tuple(current_pos), friend_pos)
@@ -205,7 +186,6 @@ def main_game():
                 closest_friend = friend
                 closest_path = path
 
-        # Move a Barbie até o amigo com o menor custo
         if closest_path:
             while closest_path:
                 path_history.append(tuple(current_pos))
@@ -225,40 +205,41 @@ def main_game():
 
                 screen.blit(character_images['barbie'], (barbie_x, barbie_y))
                 pygame.display.flip()
-                time.sleep(0.1)
+                time.sleep(0.15)
 
-            # Verifica se o amigo foi sorteado
             if closest_friend in selected_friends:
                 convinced_friends.append(closest_friend)
-
-            remaining_friends.remove(closest_friend)  # Remove o amigo visitado dos restantes
-
-    # Retorno ao ponto inicial
-    path_back = a_star_search(grid, tuple(current_pos), tuple(initial_barbie_pos))
-    if path_back:
-        while path_back:
+            remaining_friends.remove(closest_friend)
+            total_cost += min_cost
             path_history.append(tuple(current_pos))
-            current_pos = path_back.pop(0)
 
-            barbie_x, barbie_y = current_pos[1] * CELL_SIZE, current_pos[0] * CELL_SIZE
-            screen.fill(BLACK)
-            draw_grid(screen, grid)
+    # Calcula o caminho de volta para a posição inicial
+    return_path = a_star_search(grid, tuple(current_pos), tuple(initial_barbie_pos))
+    return_cost = sum(custo_movimento(grid, return_path[i], return_path[i + 1]) for i in range(len(return_path) - 1))
+    total_cost += return_cost
 
-            for pos in path_history:
-                pygame.draw.circle(screen, ROSA_PATH, (pos[1] * CELL_SIZE + CELL_SIZE // 2, pos[0] * CELL_SIZE + CELL_SIZE // 2), 3)
+    # Exibe a volta da Barbie até a posição inicial
+    while return_path:
+        path_history.append(tuple(current_pos))
+        current_pos = return_path.pop(0)
 
-            for name, (row, col) in characters.items():
-                image = character_images[name]
-                x, y = col * CELL_SIZE, row * CELL_SIZE
-                screen.blit(image, (x, y))
+        barbie_x, barbie_y = current_pos[1] * CELL_SIZE, current_pos[0] * CELL_SIZE
+        screen.fill(BLACK)
+        draw_grid(screen, grid)
 
-            screen.blit(character_images['barbie'], (barbie_x, barbie_y))
-            pygame.display.flip()
-            time.sleep(0.1)
+        for pos in path_history:
+            pygame.draw.circle(screen, ROSA_PATH, (pos[1] * CELL_SIZE + CELL_SIZE // 2, pos[0] * CELL_SIZE + CELL_SIZE // 2), 3)
+
+        for name, (row, col) in characters.items():
+            image = character_images[name]
+            x, y = col * CELL_SIZE, row * CELL_SIZE
+            screen.blit(image, (x, y))
+
+        screen.blit(character_images['barbie'], (barbie_x, barbie_y))
+        pygame.display.flip()
+        time.sleep(0.15)
 
     total_time = time.time() - start_time
-    total_cost = calculate_total_cost(convinced_friends, characters, grid, barbie_pos, initial_barbie_pos)
-
     display_results_overlay(screen, total_time, total_cost, convinced_friends)
 
 def main_menu():
